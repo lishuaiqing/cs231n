@@ -140,7 +140,38 @@ class CaptioningRNN(object):
         # Note also that you are allowed to make use of functions from layers.py   #
         # in your implementation, if needed.                                       #
         ############################################################################
-        pass
+
+        inital_hidden_state, cache_initial = affine_forward(features, W_proj, b_proj)
+        embedded_captions, cache_word_embedding = word_embedding_forward(captions_in, W_embed)
+
+        if self.cell_type == 'rnn':
+            rnn_outputs, cache_rnn = rnn_forward(embedded_captions, inital_hidden_state, Wx, Wh, b)
+        elif self.cell_type == 'lstm':
+            rnn_outputs, cache_rnn = lstm_forward(embedded_captions, inital_hidden_state, Wx, Wh, b)
+
+
+        scores, cache_scores = temporal_affine_forward(rnn_outputs, W_vocab, b_vocab)
+        loss, dsoftmax = temporal_softmax_loss(scores, captions_out, mask)
+
+  
+        dscores, dW_vocab, db_vocab = temporal_affine_backward(dsoftmax, cache_scores)
+        grads['W_vocab'], grads['b_vocab'] = dW_vocab, db_vocab
+
+        if self.cell_type == 'rnn':
+            dx, dh0, dWx, dWh, db = rnn_backward(dscores, cache_rnn)
+            grads['b'], grads['Wh'], grads['Wx'] = db, dWh, dWx
+        elif self.cell_type == 'lstm':
+            dx, dh0, dWx, dWh, db = lstm_backward(dscores, cache_rnn)
+            grads['b'], grads['Wh'], grads['Wx'] = db, dWh, dWx
+
+
+        dW_embed = word_embedding_backward(dx, cache_word_embedding)
+        grads['W_embed'] = dW_embed
+
+
+        dx_initial, dW_proj, db_proj = affine_backward(dh0, cache_initial)
+        grads['W_proj'], grads['b_proj'] = dW_proj, db_proj
+
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
